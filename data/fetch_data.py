@@ -4,6 +4,7 @@ import requests
 import argparse
 import tqdm
 import time
+import torchvision
 
 def fetch_and_dump(image_info, path_name='raw/train'):
     url = image_info['url']
@@ -13,7 +14,12 @@ def fetch_and_dump(image_info, path_name='raw/train'):
     image_path = os.path.join(path_name, image_id + '.png')
 
     if os.path.exists(image_path):
-        return
+        try:
+            torchvision.io.read_image(image_path)
+            return
+        except:
+            print("corrupted image, redownloading")
+            pass
     
     while True:
         try:
