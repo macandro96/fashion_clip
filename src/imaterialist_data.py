@@ -35,13 +35,13 @@ class iMaterialistDataset(data.Dataset):
 
 
     def __getitem__(self, index):
-        try:
-            image = torchvision.io.read_image(self.image_files[index])
-            image_id = int(self.image_files[index].split('/')[-1].split('.')[0])
-        except:
-            print(self.image_files[index])
-            self.invalid.append(self.image_files[index])
-            return torch.randn(3, 224, 224)
+        # try:
+        image = torchvision.io.read_image(self.image_files[index])
+        image_id = int(self.image_files[index].split('/')[-1].split('.')[0])
+        # except:
+        #     print(self.image_files[index])
+        #     self.invalid.append(self.image_files[index])
+        #     return torch.randn(3, 224, 224)
             # raise
 
         annotation = self.annotations[int(image_id)-1]
@@ -67,9 +67,9 @@ if __name__ == '__main__':
     transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224))
     ])
-    dataset = iMaterialistDataset('train', transforms=transforms)
+    dataset = iMaterialistDataset('validation', transforms=transforms)
     
-    dataloader = data.DataLoader(dataset, batch_size=32, shuffle=True, num_workers=3)
+    dataloader = data.DataLoader(dataset, batch_size=32, num_workers=3)
 
     max_height, max_width = 0, 0
     for i, images in tqdm.tqdm(enumerate(dataloader)):
