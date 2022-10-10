@@ -24,7 +24,7 @@ def encode(args, model):
         file_name = 'label_features_all_vitb32_oc.pkl'
     
     else:
-        df['prompt'] = "the "+df['taskName']+" is "+df['labelName']
+        df['prompt'] = "the "+df['taskName']+" of dress is "+df['labelName']
         labels = df['prompt'].values
         file_name = 'label_features_prompt_all_vitb32_oc.pkl'
 
