@@ -2,3 +2,5 @@ data/raw/*
 data/logs/*
 data/*.sbatch
 data/processed/*
+.idea
+*.pkl
