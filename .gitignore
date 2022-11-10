@@ -4,3 +4,7 @@ data/*.sbatch
 data/processed/*
 *.sbatch
 *.out
+__pycache__
+lightning_logs
+*.ckpt
+logs
