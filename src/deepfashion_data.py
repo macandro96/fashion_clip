@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 import tqdm
 
 class DeepFashionDataset(Dataset):
-    def __init__(self, root='/vast/am10150/fashion_clip/data/raw/deepfashion/dataset', transforms_=None, dataset_type='train'):
+    def __init__(self, root='/vast/am10150/fashion_clip/data/raw/deepfashion/dataset', transforms_=None, dataset_type='train', category_only=True):
         """
         Parameters
         ----------
@@ -25,6 +25,8 @@ class DeepFashionDataset(Dataset):
           exists, which gets created by running the script `resize.sh`.
         """
         self.transform = transforms_
+        self.category_only = category_only
+
         assert dataset_type in ['train', 'val', 'test']
         self.dataset_type = dataset_type
         self.root = root
@@ -35,6 +37,11 @@ class DeepFashionDataset(Dataset):
         # get all categories and image wise categories
         self.all_categories = self._get_all_categories()
         self.img_categories = self._img2category()
+
+        # get all attributes
+        if not self.category_only:
+            self.all_attributes = self._get_all_attributes()
+            self.img_attributes = self._get_img2attr()
 
     def _get_dataset(self):
         split_file = os.path.join(self.root, "Eval/list_eval_partition.txt")
@@ -76,10 +83,10 @@ class DeepFashionDataset(Dataset):
         return img_categories
 
     def _get_all_attributes(self):
-        attr_file = os.path.join(self.root, "Anno_fine", "list_attr_cloth.txt")
+        attr_file = os.path.join(self.root, "Anno_coarse", "list_attr_cloth.txt")
         f = open(attr_file, 'r')
         num_attrs = int(f.readline())
-        f.readline()
+        f.readline()  # skip header
 
         all_attrs = []
         for line in f:
@@ -87,14 +94,41 @@ class DeepFashionDataset(Dataset):
             all_attrs.append(attr)
 
         return all_attrs
+    
+    def _get_img2attr(self):
+        img_attr_file = os.path.join(self.root, "Anno_coarse", "list_attr_img.txt")
+        f = open(img_attr_file, 'r')
+        num_imgs = int(f.readline())
+        f.readline()
+
+        img_attrs = {}
+        for line in f:
+            spl = line.split()
+            img_path = spl[0]
+            attrs = []
+            for i, attr in enumerate(spl[1:]):
+                if attr == '-1':
+                    attrs.append(0)
+                else:
+                    attrs.append(int(attr))
+            img_attrs[img_path] = attrs
+        return img_attrs
 
     def __getitem__(self, index):
         img_path = self.img_paths[index]
         
         img = Image.open(os.path.join(self.root, img_path))
         img = self.transform(img)
-        label_idx = self.img_categories[img_path]
-        return img, torch.Tensor([label_idx-1]).long(), self.all_categories[label_idx-1]
+        category_label_idx = self.img_categories[img_path]
+
+        category_idx = torch.Tensor([category_label_idx-1]).long()
+        category_labels = self.all_categories[category_label_idx-1]
+        if self.category_only:
+            return img, category_label_idx, category_labels
+        else:
+            attribute_label_idx = self.img_attributes[img_path]
+            attribute_label_idx = torch.Tensor([attribute_label_idx])
+            return img, category_label_idx, category_labels, attribute_label_idx
         
 
     def __len__(self):
@@ -103,17 +137,24 @@ class DeepFashionDataset(Dataset):
 if __name__ == '__main__':
     from torch.utils.data import DataLoader
     
-    train_transforms = [
+    train_transforms = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((224, 224)),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         
-    ]
-    ds = DeepFashionDataset(transforms_=train_transforms)
-    loader = DataLoader(ds, batch_size=32, shuffle=True, num_workers=4)
+    ])
+    ds = DeepFashionDataset(transforms_=train_transforms, category_only=False)
+    loader = DataLoader(ds, batch_size=32, shuffle=True, num_workers=15)
     max_label = 0
-    for img, label_idx, label in tqdm.tqdm(loader):
+    attr_idx_sum = torch.zeros(1,1000)
+    total_instances = 0
+    for img, label_idx, label, attribute_idx in tqdm.tqdm(loader):
+        attr_idx_sum += attribute_idx.sum(dim=0)
+        total_instances += attribute_idx.shape[0]
         # print(label_idx, label)?
         max_label = max(max_label, label_idx.max())
         # print(img.shape, category.shape, attr.shape)
+    weights = total_instances / attr_idx_sum
+    import pdb; pdb.set_trace()
+    weights.numpy().dump('attribute_class_weight.npy')
     print(max_label)
