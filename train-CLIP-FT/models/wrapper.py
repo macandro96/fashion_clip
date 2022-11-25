@@ -116,11 +116,32 @@ class CLIPWrapper(pl.LightningModule):
 
     def validation_step(self, val_batch, idx):
         image, text = val_batch
-        image_logits, text_logits = self.forward(image, text)
-        ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
-        # import pdb; pdb.set_trace()
-        loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(text_logits, ground_truth)).div(2)
-        self.log('val_loss', loss)
+        n = math.ceil(len(image) // self.minibatch_size)
+        image_mbs = torch.chunk(image, n)
+        text_mbs = torch.chunk(text, n)
+
+        # calculate original statistics
+        with torch.no_grad():
+            ims = [F.normalize(self.model.encode_image(im), dim=1) for im in image_mbs]
+            txt = [F.normalize(self.model.encode_text(t), dim=1) for t in text_mbs]
+            # gather from all GPUs
+            ims = self.all_gather(torch.cat(ims))
+            txt = self.all_gather(torch.cat(txt))
+
+            if len(ims.shape) == 3:
+                ims = list(ims)
+                txt = list(txt)
+            else:
+                ims = [ims]
+                txt = [txt]
+
+            image_logits = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
+            ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
+            loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth)).div(
+                2)
+            acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
+            acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
+            self.log_dict({'val_loss': loss / len(ims), 'val_acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
 
     def configure_optimizers(self):
         lr = {
