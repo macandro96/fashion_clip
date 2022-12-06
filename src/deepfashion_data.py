@@ -124,11 +124,11 @@ class DeepFashionDataset(Dataset):
         category_idx = torch.Tensor([category_label_idx-1]).long()
         category_labels = self.all_categories[category_label_idx-1]
         if self.category_only:
-            return img, category_label_idx, category_labels
+            return img, category_idx, category_labels            # return img, category_label_idx, category_labels
         else:
             attribute_label_idx = self.img_attributes[img_path]
-            attribute_label_idx = torch.Tensor([attribute_label_idx])
-            return img, category_label_idx, category_labels, attribute_label_idx
+            attribute_label_idx = torch.Tensor([attribute_label_idx-1])             # attribute_label_idx = torch.Tensor([attribute_label_idx])
+            return img, category_idx, category_labels, attribute_label_idx #return img, category_label_idx, category_labels, attribute_label_idx
         
 
     def __len__(self):
